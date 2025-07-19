@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Zurich Flight Tracker</title>
+  <style>
+    body { font-family: sans-serif; background: #f8fafc; margin: 0; padding: 2rem; }
+    .card {
+      max-width: 400px;
+      margin: auto;
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      transition: background 0.3s;
+    }
+    h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+    p { margin: 0.5rem 0; }
+    .timestamp { margin-top: 1rem; font-size: 0.85rem; color: #666; }
+  </style>
+</head>
+<body>
+
+  <div class="card" id="flight-card">
+    <h2>Next Flight Landing at ZRH</h2>
+    <p>Loading flight data...</p>
+  </div>
+
+  <script>
+    const ZURICH_LAT = 47.4647;
+    const ZURICH_LON = 8.5492;
+    const card = document.getElementById("flight-card");
+
+    async function fetchFlight() {
+      try {
+        const res = await fetch("https://aerodatabox.p.rapidapi.com/flights/airports/icao/LSZH/arrivals/now", {
+          method: "GET",
+          headers: {
+            "X-RapidAPI-Key": "b96dea9b0fmsh7f1d22a03958855p1335fejsnc690de389577",
+            "X-RapidAPI-Host": "aerodatabox.p.rapidapi.com"
+          }
+        });
+
+        if (!res.ok) throw new Error("Failed to fetch");
+
+        const data = await res.json();
+        const arrivals = data.arrivals || [];
+
+        const filtered = arrivals
+          .filter(f => {
+            const lat = f?.departure?.airport?.location?.lat;
+            const lon = f?.departure?.airport?.location?.lon;
+            return lat != null && lon != null && (lat < ZURICH_LAT || lon > ZURICH_LON);
+          })
+          .sort((a, b) => new Date(a.arrival.scheduledTimeUtc) - new Date(b.arrival.scheduledTimeUtc));
+
+        const nextFlight = filtered[0];
+
+        if (nextFlight) {
+          const time = new Date().toLocaleTimeString();
+          card.innerHTML = `
+            <h2>Next Flight Landing at ZRH</h2>
+            <p><strong>From:</strong> ${nextFlight.departure.airport.municipalityName || "Unknown"}</p>
+            <p><strong>Flight Number:</strong> ${nextFlight.flight.number || "N/A"}</p>
+            <p><strong>Aircraft:</strong> ${nextFlight.aircraft?.model || "Unknown"}</p>
+            <p><strong>Position:</strong> ${nextFlight.departure.airport.location.lat.toFixed(2)}, ${nextFlight.departure.airport.location.lon.toFixed(2)}</p>
+            <p class="timestamp">Last updated: ${time}</p>
+          `;
+        } else {
+          card.innerHTML = `<h2>Next Flight Landing at ZRH</h2><p>No flights found from south or east.</p>`;
+        }
+      } catch (err) {
+        console.error(err);
+        card.innerHTML = `<h2>Next Flight Landing at ZRH</h2><p style="color:red;">Failed to load flight data.</p>`;
+      }
+    }
+
+    fetchFlight(); // initial load
+    setInterval(fetchFlight, 15000); // auto refresh every 15s
+  </script>
+
+</body>
+</html>
